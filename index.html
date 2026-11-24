@@ -72,6 +72,12 @@ canvas#wheel{width:100%;height:100%;display:block;cursor:pointer;filter:drop-sha
 .panel h2 small{margin-left:auto;color:var(--muted);font-weight:400}
 textarea{width:100%;min-height:200px;resize:vertical;border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;font-size:16px;line-height:1.6;background:#fff;color:var(--ink)}
 input[type=text]{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 10px;font:inherit;font-size:15px;background:#fff;color:var(--ink)}
+.people{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.person{display:inline-flex;align-items:center;gap:4px;background:#fff;border:1.5px solid var(--line);border-radius:999px;padding:5px 6px 5px 12px;font-size:15px}
+.person button{border:none;background:#eee4d2;color:var(--muted);width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:13px;line-height:1}
+.person button:hover{background:var(--red);color:#fff}
+.addrow{display:flex;gap:6px}.addrow input{flex:1}.addrow .btn{flex:0 0 auto;padding:9px 14px}
+details{margin-top:8px}summary{cursor:pointer;font-size:14px;color:var(--muted);padding:4px 0}details textarea{margin-top:6px;min-height:140px}
 .row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .btn{flex:1 1 auto;background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 8px;cursor:pointer;font:inherit;font-size:14px;color:var(--ink)}
 .btn:hover{border-color:var(--ink)}
@@ -149,11 +155,16 @@ ol.history li em{font-style:normal;color:var(--muted);font-size:13px;margin-left
   <aside>
     <div class="panel">
       <h2>👥 참가자 <small id="count">0명</small></h2>
-      <textarea id="names" spellcheck="false" placeholder="이름을 한 줄에 하나씩&#10;예) 김부장&#10;이과장"></textarea>
+      <div class="people" id="people"></div>
+      <div class="addrow"><input type="text" id="addName" maxlength="20" placeholder="추가할 사람 (예: 할머니)" enterkeyhint="done"><button class="btn primary" id="addBtn">+ 추가</button></div>
+      <details id="editBox"><summary>명단 직접 고치기</summary>
+      <textarea id="names" spellcheck="false" placeholder="이름을 한 줄에 하나씩"></textarea>
+      </details>
       <div class="row">
         <button class="btn" id="shuffleBtn">🔀 섞기</button>
         <button class="btn" id="sortBtn">가나다순</button>
         <button class="btn" id="resetBtn">↩ 뺀 사람 복귀</button>
+        <button class="btn" id="familyBtn">🏠 우리 가족으로</button>
       </div>
       <div id="removedWrap" style="margin-top:10px;display:none">
         <div class="desc">이번 판에서 빠진 사람</div>
@@ -214,7 +225,7 @@ const THEMES = [
 ];
 const PALETTE = ['#c8342b','#1f5aa6','#e8b828','#2f8f6f','#d9677f','#6b3fa0','#e07b2e','#3a9ccf'];
 const TEXT_ON = {'#e8b828':'#2a2420'};
-const DEFAULT_NAMES = '김부장\n이과장\n박대리\n최주임\n정사원\n강인턴';
+const DEFAULT_NAMES = '김민지\n김태훈\n엄마\n아빠';
 
 const $ = s => document.querySelector(s);
 const store = {
@@ -224,7 +235,7 @@ const store = {
 
 let state = {
   theme: store.get('theme','bap'),
-  names: store.get('names',DEFAULT_NAMES),
+  names: store.get('names2',DEFAULT_NAMES),
   q: store.get('q',null),
   mode: store.get('mode','one'),
   sound: store.get('sound',true),
@@ -255,7 +266,7 @@ $('#qInput').addEventListener('input',e=>{state.q=e.target.value||null;store.set
 
 const ta=$('#names');
 ta.value=state.names;
-ta.addEventListener('input',()=>{state.names=ta.value;state.removed=[];store.set('names',ta.value);refresh()});
+ta.addEventListener('input',()=>{state.names=ta.value;state.removed=[];store.set('names2',ta.value);refresh()});
 
 function allNames(){return state.names.split('\n').map(s=>s.trim()).filter(Boolean)}
 function refresh(){
@@ -264,6 +275,9 @@ function refresh(){
   const rem=[...state.removed];
   entries=all.filter(n=>{const i=rem.indexOf(n); if(i>=0){rem.splice(i,1);return false} return true});
   $('#count').textContent = entries.length+'명'+(state.removed.length?` / 전체 ${all.length}명`:'');
+  const pp=$('#people'); pp.innerHTML='';
+  all.forEach((n,idx)=>{const d=document.createElement('span');d.className='person';d.textContent=n;const x=document.createElement('button');x.textContent='✕';x.title=n+' 빼기';
+    x.onclick=()=>{if(spinning)return;const a=allNames();a.splice(idx,1);ta.value=state.names=a.join('\n');store.set('names2',state.names);state.removed=[];refresh()};d.appendChild(x);pp.appendChild(d)});
   const rw=$('#removedWrap'), r=$('#removed');
   rw.style.display=state.removed.length?'block':'none';
   r.innerHTML=''; state.removed.forEach(n=>{const c=document.createElement('span');c.className='chip';c.textContent=n;r.appendChild(c)});
@@ -271,8 +285,13 @@ function refresh(){
   draw();
 }
 
-$('#shuffleBtn').onclick=()=>{if(spinning)return;const a=allNames();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}ta.value=state.names=a.join('\n');store.set('names',state.names);refresh()};
-$('#sortBtn').onclick=()=>{if(spinning)return;const a=allNames().sort((x,y)=>x.localeCompare(y,'ko'));ta.value=state.names=a.join('\n');store.set('names',state.names);refresh()};
+$('#shuffleBtn').onclick=()=>{if(spinning)return;const a=allNames();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}ta.value=state.names=a.join('\n');store.set('names2',state.names);refresh()};
+$('#sortBtn').onclick=()=>{if(spinning)return;const a=allNames().sort((x,y)=>x.localeCompare(y,'ko'));ta.value=state.names=a.join('\n');store.set('names2',state.names);refresh()};
+function addName(){ if(spinning) return; const i=$('#addName'); const v=i.value.trim(); if(!v){i.focus();return}
+  const a=allNames(); a.push(v); ta.value=state.names=a.join('\n'); store.set('names2',state.names); i.value=''; refresh(); toast(v+' 추가!'); }
+$('#addBtn').onclick=addName;
+$('#addName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addName()}});
+$('#familyBtn').onclick=()=>{if(spinning)return;ta.value=state.names=DEFAULT_NAMES;state.removed=[];store.set('names2',state.names);refresh();toast('우리 가족 4명으로 돌아왔어요')};
 $('#resetBtn').onclick=()=>{if(spinning)return;state.removed=[];refresh();toast('모두 다시 돌림판에 올렸어요')};
 
 const MODE_DESC={one:'한 번 돌려서 걸린 사람이 당첨!',survive:'한 명씩 탈락시키고, 마지막까지 남은 사람이 당첨! (긴장감 최고)'};
